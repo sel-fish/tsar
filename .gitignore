@@ -6,3 +6,5 @@ src/tsar
 *.dSYM
 cscope.out
 ttsar.sh
+.idea
+CMakeLists.txt
