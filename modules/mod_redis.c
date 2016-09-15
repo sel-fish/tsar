@@ -72,8 +72,7 @@ read_redis_stats(struct module *mod, const char *parameter) {
         goto writebuf;
     }
 
-    sprintf(request,
-            "%s", "*2\r\n$4\r\ninfo\r\n$3\r\nall\r\n");
+    sprintf(request, "%s", "*2\r\n$4\r\ninfo\r\n$3\r\nall\r\n");
 
     if ((send = write(sockfd, request, strlen(request))) == -1) {
         goto writebuf;
@@ -121,8 +120,6 @@ read_redis_stats(struct module *mod, const char *parameter) {
                 write_flag = 1;
             }
         }
-
-
 
         // update read len
         read_len += strlen(line);
