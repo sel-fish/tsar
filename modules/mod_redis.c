@@ -103,17 +103,17 @@ read_redis_stats(struct module *mod, const char *parameter) {
     }
 
     unsigned long long keys = 0, cur_keys = 0, db, expires, avg_ttl;
-    bool keyspace_field = false;
+    int keyspace_field = 0;
 
     // read all content of bulk replay
     // including the last CRLF
     int read_len = 0;
     while (fgets(line, LEN_4096, stream) != NULL) {
         if (!strncmp(line, "# Keyspace", sizeof("# Keyspace") - 1)) {
-            keyspace_field = true;
-        } else if (keyspace_field) {
+            keyspace_field = 1;
+        } else if (1 == keyspace_field) {
             if (!strncmp(line, "db", sizeof("db") - 1)) {
-                // db0:keys=3,expires=0,avg_ttl=0
+                // format --> db0:keys=3,expires=0,avg_ttl=0
                 sscanf(line, "db%llu:keys=%llu,expires=%llu,avg_ttl=%llu",
                        &db, &cur_keys, &expires, &avg_ttl);
                 keys += cur_keys;
@@ -139,13 +139,15 @@ read_redis_stats(struct module *mod, const char *parameter) {
         close(sockfd);
     }
 
-    pos = sprintf(buf, "%llu",
-    /* the store order is not same as read procedure */
-                  st_redis.keys);
+    if (1 == write_flag) {
+        pos = sprintf(buf, "%llu",
+        /* the store order is not same as read procedure */
+                      st_redis.keys);
 
-    buf[pos] = '\0';
-    /* send data to tsar you can get it by pre_array&cur_array at set_redis_record */
-    set_mod_record(mod, buf);
+        buf[pos] = '\0';
+        /* send data to tsar you can get it by pre_array&cur_array at set_redis_record */
+        set_mod_record(mod, buf);
+    }
 
     return;
 }
