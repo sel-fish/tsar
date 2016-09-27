@@ -25,7 +25,7 @@
 #define MAX_INSTANCES 30
 #define LEN_4096 4096
 
-static const char *redis_usage = "    --redis               redis information";
+static const char *redis_usage = "    --redis             redis information";
 
 struct redis_instance_info {
     int port;
@@ -129,7 +129,8 @@ void collect_redis_inst_stat(int index) {
         goto writebuf;
     }
 
-    sprintf(request, "%s", "*2\r\n$4\r\ninfo\r\n$3\r\nall\r\n");
+    sprintf(request, "%s", "*1\r\n$4\r\ninfo\r\n");
+//    sprintf(request, "%s", "*2\r\n$4\r\ninfo\r\n$3\r\nall\r\n");
 
     if ((write(sockfd, request, strlen(request))) == -1) {
         goto writebuf;
