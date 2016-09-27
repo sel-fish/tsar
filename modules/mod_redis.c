@@ -269,7 +269,6 @@ static void print_instance_stats(struct module *mod) {
         }
     }
 
-    buf[pos] = '\0';
     set_mod_record(mod, buf);
     return;
 }
@@ -300,8 +299,12 @@ set_redis_record(struct module *mod, double st_array[],
     /* st_array is used to display, refer to redis_info */
     /* pre_array/cur_array is used to record stat, refer to redis_stat */
 
-    for (i = 0; i <= 5; i++) {
+    for (i = 0; i <= 3; i++) {
         st_array[i] = cur_array[i];
+    }
+
+    for (i = 4; i <= 5; i++) {
+        st_array[i] = (cur_array[i] - pre_array[i]) / (inter * 1.0);
     }
 
     double hit_qps = (cur_array[6] - pre_array[6]) / (inter * 1.0);
