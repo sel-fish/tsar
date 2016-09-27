@@ -35,23 +35,41 @@ struct redis_instance_info {
  * temp structure for collection information.
  */
 struct stats_redis {
-    unsigned long long keys;
-    /* keys in db */
-    unsigned long long expires;
-    /* expire keys in db */
-    unsigned long long ops;              /* operations per second */
+    unsigned long long keys;                /* keys in db */
+    unsigned long long expires;             /* expire keys in db */
+    unsigned long long blocked_clients;     /* */
+    unsigned long long connected_clients;   /* */
+    unsigned long long expired;             /* */
+    unsigned long long evicted;             /* */
+    unsigned long long hits;                /* */
+    unsigned long long misses;              /* */
+    unsigned long long ops;                 /* */
+    unsigned long long input;               /* */
+    unsigned long long output;              /* */
+    unsigned long long mem_rss;             /* */
+    unsigned long long mem_peak;            /* */
 } redis_stats[MAX_INSTANCES];
 
 unsigned int n_instances = 0;                /* Number of instances */
 
 /* Structure for tsar */
 static struct mod_info redis_info[] = {
-        {"   keys", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
-        {"expires", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
-        {"    ops", SUMMARY_BIT, MERGE_SUM, STATS_NULL}
+        {"  keys", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"  exps", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {" block", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"connet", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"expire", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {" evict", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"hirate", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"   ops", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"    in", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"   out", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"   rss", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"  peak", SUMMARY_BIT, MERGE_SUM, STATS_NULL}
 };
 
 int redis_inst_initialize() {
+    // TODO use ss api to get redis ports
     char *cmd = "ss -4ntlp 2>/dev/null |awk '{split($4,port,\":\"); "
             "if($NF~/redis-server/) print port[length(port)]}' 2>/dev/null";
     char buf[LEN_4096];
@@ -143,7 +161,11 @@ void collect_redis_inst_stat(int index) {
 
     unsigned long long keys = 0, cur_keys,
             expires = 0, cur_expires,
-            ops = 0,
+            blocked, connected,
+            expired_keys = 0, evicted_keys = 0,
+            hits = 0, misses = 0,
+            ops = 0, input = 0, output = 0,
+            mem_rss = 0, mem_peak = 0,
             db, avg_ttl;
 
     int keyspace_field = 0;
@@ -162,8 +184,28 @@ void collect_redis_inst_stat(int index) {
                 keys += cur_keys;
                 expires += cur_expires;
             }
+        } else if (!strncmp(line, "blocked_clients", sizeof("blocked_clients") - 1)) {
+            sscanf(line, "blocked_clients:%llu", &blocked);
+        } else if (!strncmp(line, "connected_clients", sizeof("connected_clients") - 1)) {
+            sscanf(line, "connected_clients:%llu", &connected);
+        } else if (!strncmp(line, "expired_keys", sizeof("expired_keys") - 1)) {
+            sscanf(line, "expired_keys:%llu", &expired_keys);
+        } else if (!strncmp(line, "evicted_keys", sizeof("evicted_keys") - 1)) {
+            sscanf(line, "evicted_keys:%llu", &evicted_keys);
+        } else if (!strncmp(line, "keyspace_hits", sizeof("keyspace_hits") - 1)) {
+            sscanf(line, "keyspace_hits:%llu", &hits);
+        } else if (!strncmp(line, "keyspace_misses", sizeof("keyspace_misses") - 1)) {
+            sscanf(line, "keyspace_misses:%llu", &misses);
         } else if (!strncmp(line, "instantaneous_ops_per_sec", sizeof("instantaneous_ops_per_sec") - 1)) {
             sscanf(line, "instantaneous_ops_per_sec:%llu", &ops);
+        } else if (!strncmp(line, "instantaneous_input_kbps", sizeof("instantaneous_input_kbps") - 1)) {
+            sscanf(line, "instantaneous_input_kbps:%llu", &input);
+        } else if (!strncmp(line, "instantaneous_output_kbps", sizeof("instantaneous_output_kbps") - 1)) {
+            sscanf(line, "instantaneous_output_kbps:%llu", &output);
+        } else if (!strncmp(line, "used_memory_rss", sizeof("used_memory_rss") - 1)) {
+            sscanf(line, "used_memory_rss:%llu", &mem_rss);
+        } else if (!strncmp(line, "used_memory_peak", sizeof("used_memory_peak") - 1)) {
+            sscanf(line, "used_memory_peak:%llu", &mem_peak);
         }
 
         // update read len
@@ -175,7 +217,17 @@ void collect_redis_inst_stat(int index) {
 
     redis_stats[index].keys = keys;
     redis_stats[index].expires = expires;
+    redis_stats[index].blocked_clients = blocked;
+    redis_stats[index].connected_clients = connected;
+    redis_stats[index].expired = expired_keys;
+    redis_stats[index].evicted = evicted_keys;
+    redis_stats[index].hits = hits;
+    redis_stats[index].misses = misses;
     redis_stats[index].ops = ops;
+    redis_stats[index].input = input;
+    redis_stats[index].output = output;
+    redis_stats[index].mem_rss = mem_rss;
+    redis_stats[index].mem_peak = mem_peak;
 
     writebuf:
     if (stream) {
@@ -194,12 +246,23 @@ static void print_instance_stats(struct module *mod) {
     unsigned int i;
 
     for (i = 0; i < n_instances; i++) {
-        pos += snprintf(buf + pos, LEN_1M - pos, "%d=%llu,%llu,%llu,%d" ITEM_SPLIT,
+        pos += snprintf(buf + pos, LEN_1M - pos, "%d=%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%d" ITEM_SPLIT,
                         redis_instances[i].port,
                         redis_stats[i].keys,
                         redis_stats[i].expires,
+                        redis_stats[i].blocked_clients,
+                        redis_stats[i].connected_clients,
+                        redis_stats[i].expired,
+                        redis_stats[i].evicted,
+                        redis_stats[i].hits,
+                        redis_stats[i].misses,
                         redis_stats[i].ops,
+                        redis_stats[i].input,
+                        redis_stats[i].output,
+                        redis_stats[i].mem_rss,
+                        redis_stats[i].mem_peak,
                         pos);
+
         if (strlen(buf) == LEN_1M - 1) {
             return;
         }
@@ -232,14 +295,28 @@ static void
 set_redis_record(struct module *mod, double st_array[],
                  U_64 pre_array[], U_64 cur_array[], int inter) {
     int i;
-    /* set st record */
-    for (i = 0; i < mod->n_col; i++) {
+
+    /* st_array is used to display, refer to redis_info */
+    /* pre_array/cur_array is used to record stat, refer to redis_stat */
+
+    for (i = 0; i <= 5; i++) {
         st_array[i] = cur_array[i];
     }
+
+    double hit_qps = (cur_array[6] - pre_array[6]) / (inter * 1.0);
+    double miss_qps = (cur_array[7] - pre_array[7]) / (inter * 1.0);
+    double total_qps = hit_qps + miss_qps;
+
+    st_array[6] = (0 == total_qps) ? 0 : hit_qps / total_qps;
+
+    for (i = 8; i <= 12; i++) {
+        st_array[i - 1] = cur_array[i];
+    }
+
 }
 
 /* register mod to tsar */
 void
 mod_register(struct module *mod) {
-    register_mod_fields(mod, "--redis", redis_usage, redis_info, 4, read_redis_stats, set_redis_record);
+    register_mod_fields(mod, "--redis", redis_usage, redis_info, 14, read_redis_stats, set_redis_record);
 }
