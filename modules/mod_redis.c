@@ -65,7 +65,9 @@ static struct mod_info redis_info[] = {
         {"    in", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
         {"   out", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
         {"   rss", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
-        {"  peak", SUMMARY_BIT, MERGE_SUM, STATS_NULL}
+        {"  peak", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"  none", SUMMARY_BIT, MERGE_SUM, STATS_NULL},
+        {"  none", SUMMARY_BIT, MERGE_SUM, STATS_NULL}
 };
 
 int redis_inst_initialize() {
