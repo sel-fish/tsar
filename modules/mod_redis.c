@@ -72,7 +72,7 @@ static struct mod_info redis_info[] = {
 
 int redis_inst_initialize() {
     // TODO use ss api to get redis ports
-    char *cmd = "ss -4ntlp 2>/dev/null |awk '{split($4,port,\":\"); "
+    char *cmd = "export PATH=/usr/sbin:$PATH; ss -4ntlp 2>/dev/null |awk '{split($4,port,\":\"); "
             "if($NF~/redis-server/) print port[length(port)]}' 2>/dev/null";
     char buf[LEN_4096];
     FILE *fp;
